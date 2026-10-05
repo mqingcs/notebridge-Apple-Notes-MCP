@@ -1,0 +1,47 @@
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  synthetic:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: '3.9'
+          - os: ubuntu-latest
+            python: '3.13'
+          - os: macos-latest
+            python: '3.13'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Synthetic regression tests
+        run: python -m unittest discover -s tests -v
+      - name: Source stdio smoke test
+        run: python scripts/smoke_test.py
+      - name: Scan tracked files and history
+        run: python scripts/scan_publication.py
+      - name: Build and install wheel
+        shell: bash
+        run: |
+          python -m pip wheel --no-deps --wheel-dir dist .
+          python -m pip install --no-deps dist/*.whl
+      - name: Installed-package smoke test outside checkout
+        run: python scripts/smoke_test.py --installed
+      - name: Validate packaged JXA and compile syntax
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP"
+          python -c "from importlib.resources import files; p = files('apple_notes_mcp').joinpath('adapter.js'); assert p.is_file(); print(p)"
+          osacompile -l JavaScript -o "$RUNNER_TEMP/notes-adapter.scpt" "$GITHUB_WORKSPACE/apple_notes_mcp/adapter.js"

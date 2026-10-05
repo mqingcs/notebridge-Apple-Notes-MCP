@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "apple-notes": {
+      "command": "/absolute/path/to/venv/bin/apple-notes-mcp",
+      "args": ["--notes", "--allowed-folder", "REPLACE_WITH_YOUR_EXACT_FOLDER_ID"],
+      "env": {"NOTES_ALLOW_REAL": "1"}
+    }
+  }
+}

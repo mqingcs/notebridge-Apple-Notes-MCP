@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "apple-notes-synthetic": {
+      "command": "/absolute/path/to/venv/bin/apple-notes-mcp",
+      "args": ["--fixture", "/absolute/path/to/checkout/fixtures/synthetic.json", "--allowed-folder", "folder-demo"]
+    }
+  }
+}

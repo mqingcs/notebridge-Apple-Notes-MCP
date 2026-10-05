@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scoped-apple-notes-mcp"
+version = "0.1.0"
+description = "A local, folder-scoped Apple Notes MCP server with opt-in non-deleting edits"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [{name = "Apple Notes MCP contributors"}]
+dependencies = []
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Operating System :: MacOS :: MacOS X",
+  "Programming Language :: Python :: 3",
+  "Topic :: Text Processing",
+]
+
+[project.scripts]
+apple-notes-mcp = "apple_notes_mcp.server:main"
+
+[tool.setuptools]
+packages = ["apple_notes_mcp"]
+
+[tool.setuptools.package-data]
+apple_notes_mcp = ["adapter.js"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E9", "F63", "F7", "F82"]
