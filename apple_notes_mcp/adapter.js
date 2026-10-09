@@ -27,6 +27,11 @@ function run() {
         function attachmentMeta(a) {
             return {id:a.id(), name:a.name().slice(0,512), modified_at:a.modificationDate().toISOString(), shared:a.shared()};
         }
+        function attachmentReadMeta(a) {
+            var meta = attachmentMeta(a);
+            try { meta.content_identifier = a.contentIdentifier(); } catch (e) { meta.content_identifier = null; }
+            return meta;
+        }
         function snapshot(n, folderID) {
             var body = n.body(), text = n.plaintext();
             var attachments = n.attachments();
@@ -80,14 +85,15 @@ function run() {
                     var attachments = n.attachments();
                     if (attachments.length > 10000) return JSON.stringify({error:'Attachment scope too large.'});
                     if (req.action === 'attachments') {
-                        var page = attachments.slice(req.offset, req.offset + req.limit).map(attachmentMeta);
+                        var page = attachments.slice(req.offset, req.offset + req.limit).map(attachmentReadMeta);
                         return JSON.stringify({attachments:page, total:attachments.length,
                             next_offset:req.offset + req.limit < attachments.length ? req.offset + req.limit : null, source:'apple_notes'});
                     }
                     var matching = attachments.filter(function(a) { return a.id() === req.attachment_id; });
                     if (matching.length !== 1 || matching[0].shared()) return JSON.stringify({error:'Attachment unavailable in this allowed note.'});
                     var att = matching[0], meta = attachmentMeta(att);
-                    notes.save(att, {in:Path(req.export_path)});
+                    try { notes.save(att, {in:Path(req.export_path)}); }
+                    catch (e) { return JSON.stringify({error:'Original attachment export unavailable. If it is stored only in iCloud, download it in Notes and retry. No thumbnail was substituted.'}); }
                     return JSON.stringify({attachment_id:meta.id, filename:meta.name, source:'apple_notes'});
                 }
                 if (req.action === 'snapshot') return JSON.stringify(snapshot(n, folderID));
@@ -125,6 +131,13 @@ function run() {
                     var text = n.plaintext();
                     row.text = text.slice(0, req.max_chars);
                     row.truncated = text.length > req.max_chars;
+                    if (req.format === 'html') {
+                        var html = n.body(), items = n.attachments();
+                        if (html.length > 33554432 || items.length > 10000) return JSON.stringify({error:'Note HTML/attachment manifest exceeds response bound.'});
+                        row.body_html = html;
+                        row.representation = 'notes_scripting_html';
+                        row.attachments = items.map(attachmentReadMeta);
+                    }
                     return JSON.stringify(row);
                 }
                 rows.push(row);

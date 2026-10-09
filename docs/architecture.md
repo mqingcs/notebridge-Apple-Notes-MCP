@@ -21,7 +21,7 @@ files. `adapter.js` is fixed source; request JSON is data, never evaluated as co
 
 The source has no third-party Python runtime imports. Foundation/CoreServices and
 Notes belong to macOS; they are not copied into the distribution. Each real request
-starts an `osascript` process with a 20-second deadline. The server blocks on stdin
+starts an `osascript` process with a 20-second deadline (60 seconds for attachment export). The server blocks on stdin
 between requests. There are no scan timers, resident workers, or network calls in
 the server itself.
 

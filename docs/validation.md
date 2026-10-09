@@ -1,33 +1,25 @@
-# Validation and release scope
+# Validation scope
 
-The source was extracted from an existing local deployment, not from its private
-configuration, logs or note backups. A separate later successful Notes read/write
-acceptance was also reported by the maintainer; release claims below are limited
-to the code and inspectable evidence available during this preparation.
+| Capability | Existing evidence |
+| --- | --- |
+| stdio lifecycle, repeated initialize, framing and tool discovery | Synthetic subprocess tests |
+| Folder scope, locked-note exclusion, metadata, title search and plain text | Synthetic tests and originating real-client acceptance |
+| Create, edit, append, rename, basic HTML and text restore | Synthetic tests and originating real-client acceptance |
+| PNG and HEIC original export | Real local MCP reads; exported bytes match the corresponding inline HTML bytes by SHA-256 |
+| Image previews | Real local MCP JPEG preview output for PNG and HEIC |
+| HTML structure and embedded-image references | Real local extraction plus synthetic reconstruction coverage |
+| Chunk reassembly, changed-file detection, resources and duplicate filenames | Synthetic tests |
+| JPEG, GPG, PDF-like and unknown-extension bytes | Synthetic byte fixtures, not a format parser or decryption test |
+| Attachment addition and cross-folder moves | Synthetic tests; real acceptance not claimed |
 
-| Capability | Evidence | Release status |
-| --- | --- | --- |
-| stdio lifecycle, repeated initialize, framing, tool discovery | Automated synthetic subprocess tests | Supported |
-| Exact folder scope, locked-note exclusion, bounded text, title search, changes | Automated synthetic tests; originating real list/search/get acceptance | Supported within documented limits |
-| Create, plain edit, append, rename, basic HTML, backup restore | Originating real client acceptance on one explicitly authorized test note, plus synthetic tests | Supported; no concurrent-edit guarantee |
-| Cross-folder move | Synthetic tests; no real cross-folder acceptance evidence | Implemented, not real-world validated |
-| Attachment metadata/export/addition | Synthetic tests and JXA syntax compilation only | Experimental; extra flag required |
-| Native checklist state, pinning, tags, folder management | No implementation; checklist/pin absent from inspected public scripting dictionary | Unsupported |
-| macOS Automation | Originating deployment granted permission and completed real client calls | Must be granted/verified per user's launcher |
-| Background termination recovery | Originating user LaunchAgent recovered after termination | Deployment-specific; no service installer bundled |
-| Reboot/login recovery, long-term power usage | Not exercised for this package | No claim |
+The original deployed implementation passed 52 regression tests following the
+attachment repair. Earlier portable-package checks covered Python3.9/3.13, wheel
+installation and stdio startup. Tests were not rerun for the public release at the
+maintainer's request; the repository retains a CI workflow for subsequent changes.
 
-No real Notes access, new note creation, or note modification is performed during
-open-source packaging or CI. Automated tests run with synthetic fixtures. CI also
-builds and installs a wheel, exercises the installed stdio entry point and scans
-tracked files/history for accidentally included secrets or personal paths.
+Tests and CI use synthetic fixtures. No private notes, files, runtime credentials,
+local identifiers, or deployment receipts are distributed with the source.
 
-Resource figures from a different, private deployment are deliberately not
-advertised as package performance guarantees. Query cost depends on Notes/account
-state, selected folders, note size and the external transport. Returned text/byte
-limits do not cap Notes' own resource usage.
-
-The attachment `get` tool returns base64 bytes and UTF-8 text for selected text
-extensions. It does not make binary documents semantically readable to every MCP
-client. An accepted `make`/`save` call is not yet evidence of end-to-end transfer
-compatibility; native/client acceptance remains outstanding.
+Resource use depends on Notes, note size and transport. There is no background
+indexer. Returned chunk bounds do not bound the native app's memory or the temporary
+full-file export. The Mac must remain available for remote requests.

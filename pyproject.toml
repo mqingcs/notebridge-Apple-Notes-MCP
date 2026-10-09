@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "scoped-apple-notes-mcp"
+name = "notebridge-mcp"
 version = "0.1.0"
-description = "A local, folder-scoped Apple Notes MCP server with opt-in non-deleting edits"
+description = "Apple Notes for AI: scoped MCP access, original attachments, and versioned edits"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
@@ -19,7 +19,13 @@ classifiers = [
   "Topic :: Text Processing",
 ]
 
+[project.urls]
+Homepage = "https://github.com/mqingcs/notebridge"
+Repository = "https://github.com/mqingcs/notebridge"
+Issues = "https://github.com/mqingcs/notebridge/issues"
+
 [project.scripts]
+notebridge = "apple_notes_mcp.server:main"
 apple-notes-mcp = "apple_notes_mcp.server:main"
 
 [tool.setuptools]

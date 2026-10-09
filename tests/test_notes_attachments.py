@@ -107,8 +107,7 @@ class Attachments(unittest.TestCase):
 
     def test_read_bound_and_other_note_rejected(self):
         a = self.add()
-        with self.assertRaises(m.NotesError):
-            self.call("get_attachment", id=self.id, attachment_id=a["attachment_id"], max_bytes=1)
+        self.assertEqual(self.call("get_attachment", id=self.id, attachment_id=a["attachment_id"], max_bytes=1)["next_offset"], 1)
         with self.assertRaises(m.NotesError):
             self.call("get_attachment", id="notes://fixture/b", attachment_id=a["attachment_id"])
 

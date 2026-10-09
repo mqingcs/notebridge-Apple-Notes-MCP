@@ -1,213 +1,220 @@
-# Scoped Apple Notes MCP
+<div align="center">
 
-A local MCP server for Apple Notes on macOS. It reads only explicitly selected
-folders and can optionally create and edit notes **without exposing deletion**.
-It uses the Notes scripting interface through a fixed JavaScript for Automation
-(JXA) adapter. No Notes database access, browser automation, or third-party Python
-runtime dependencies are required.
+# NoteBridge
 
-[中文说明](docs/README.zh-CN.md) · [Architecture](docs/architecture.md) ·
-[Security and privacy](SECURITY.md) · [Validation](docs/validation.md)
+### Your Apple Notes. Your AI. Connected.
 
-**Status: early release.** Reading and core non-deleting edits have been exercised
-through a real ChatGPT/private-tunnel client in the originating deployment.
-Attachment tools have synthetic coverage only and require an additional
-experimental flag. This repository does not claim support for every Notes feature.
+Search notes, preserve their formatting, retrieve original attachments, and make versioned edits — through the Model Context Protocol.
 
-## Requirements
+[![macOS](https://img.shields.io/badge/platform-macOS-111111?logo=apple)](#quick-start)
+[![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
+[![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![MCP](https://img.shields.io/badge/protocol-MCP-6750A4)](#connect-your-mcp-client)
 
-- Python **3.9 or newer**. The synthetic test suite can run on macOS and Linux.
-- For real notes: macOS, the built-in Notes app, `/usr/bin/osascript`, and the
-  Foundation/CoreServices frameworks. The originating deployment used Apple
-  silicon and macOS 27; other macOS versions have not been acceptance-tested.
-- A logged-in desktop session with the relevant Notes account available locally.
-  Unlock/synchronize the account yourself; this server cannot unlock notes.
-- macOS **Automation** permission for the application launching the server to
-  control Notes. It does not request Full Disk Access or Accessibility permission.
-- An MCP client that supports stdio, or a separately configured private transport.
+[Quick start](#quick-start) · [Features](#what-you-can-do) · [Attachments](#original-files-not-just-previews) · [中文](docs/README.zh-CN.md)
 
-There is no direct iCloud web API here. The Mac must remain awake, logged in and
-online for remote clients. Apple sync and account availability remain prerequisites.
+</div>
 
-## Install from this repository
+NoteBridge connects an MCP client to the Notes app on your Mac. Choose the folders
+it can access, start with read-only tools, and enable editing when you need it.
+The server uses Apple's scripting interface and the Python standard library:
+**no Python runtime dependencies, no note database scraping, no background indexing.**
+
+## What you can do
+
+| Capability | What you get |
+| --- | --- |
+| Find a note | Paginated listings, title search, and modification timestamps |
+| Read with context | Plain text or exported HTML with styles and attachment references |
+| Retrieve original files | Byte-exact native exports, MIME detection, SHA-256, and chunked reads |
+| See images | Separate JPEG previews for PNG, JPEG, HEIC and other macOS-supported images |
+| Edit deliberately | Create, append, rename, basic formatting, and moves within selected folders |
+| Recover an edit | Version checks and private local backups for text and formatting |
+
+Try asking your client:
+
+> Find my note titled “Trip planning” and summarize it.
+>
+> Read this note with its formatting and show its attached images.
+>
+> Retrieve the original attachment, including its filename and SHA-256.
+>
+> Append these decisions to “Project kickoff” after checking its current version.
+
+Search matches **titles**, not full note bodies. Editing is opt-in; deletion is not
+exposed. Image previews are derived for display — original file bytes stay separate.
+
+## Quick start
+
+You need **macOS**, **Python 3.9+**, and the built-in **Notes** app. Open Notes and let
+your chosen account sync before connecting.
 
 ```sh
+git clone https://github.com/mqingcs/notebridge.git
+cd notebridge
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install .
-apple-notes-mcp --help
 ```
 
-Or run without installing:
+Grant Notes Automation permission from the application that will launch the server,
+then list folders to select an exact folder ID:
 
 ```sh
-python3 -m apple_notes_mcp --help
+NOTES_ALLOW_REAL=1 notebridge --notes --request-automation
+NOTES_ALLOW_REAL=1 notebridge --notes --folders
 ```
 
-Installation does **not** grant permissions, start a background service, install a
-tunnel client, or connect to Notes. No API key is needed for local stdio use.
-A wheel includes the JXA adapter; it does not depend on a checkout at runtime.
-
-## Try synthetic notes first
-
-From the repository root:
+Start the server:
 
 ```sh
-python3 scripts/smoke_test.py
-python3 -m unittest discover -s tests -v
+NOTES_ALLOW_REAL=1 notebridge --notes \
+  --allowed-folder 'YOUR_EXACT_FOLDER_ID'
 ```
 
-The smoke test performs a real stdio handshake, discovers tools, and calls
-list/search/get on the included synthetic fixture. It prints only a short status
-summary, then closes the process. It never contacts Notes.
+The process waits quietly for an MCP client on stdin. Repeat `--allowed-folder` to
+select more folders; subfolders are not included automatically. Local stdio use
+requires **no API key**. `apple-notes-mcp` remains available as an equivalent command.
 
-To leave the synthetic server waiting for an MCP client:
+<details>
+<summary>Try the included demo without opening Notes</summary>
 
 ```sh
-python3 -m apple_notes_mcp \
-  --fixture fixtures/synthetic.json --allowed-folder folder-demo
+python scripts/smoke_test.py
 ```
 
-A quiet terminal is normal: stdout is reserved for newline-delimited MCP JSON-RPC.
-Use `--enable-writes --backup-dir /absolute/private/test-backups` to try mutations
-against the in-memory fixture. Fixture changes are not saved to the fixture file.
-
-## Connect real Notes
-
-1. Open Notes normally and let the desired account synchronize.
-2. Check permission without prompting or reading notes:
-
-   ```sh
-   apple-notes-mcp --preflight
-   ```
-
-3. If needed, deliberately request permission from the **same launching context**
-   you will use for the server:
-
-   ```sh
-   NOTES_ALLOW_REAL=1 apple-notes-mcp --notes --request-automation
-   ```
-
-   This is a local setup command: it requests consent once, prints a status and
-   exits. Remote tools never request permission or change macOS privacy settings.
-   A background launcher may have a different Automation identity from Terminal.
-
-4. Enumerate account/folder names and IDs locally:
-
-   ```sh
-   NOTES_ALLOW_REAL=1 apple-notes-mcp --notes --folders
-   ```
-
-   This command exposes your folder metadata on your terminal. Select only the
-   exact folder IDs you intend to expose; do not commit or share its output.
-
-5. Start a read-only server with the chosen ID:
-
-   ```sh
-   NOTES_ALLOW_REAL=1 apple-notes-mcp --notes \
-     --allowed-folder 'REPLACE_WITH_YOUR_EXACT_FOLDER_ID'
-   ```
-
-Repeat `--allowed-folder` for another explicitly approved folder. Child folders
-are **not** included automatically. Missing or moved folders fail closed.
-The placeholder above is not a functional Notes ID.
-
-[examples/client.readonly.json](examples/client.readonly.json) is a generic client
-configuration. Replace its executable and folder placeholders locally. Client
-configuration formats differ; the example is not automatically installed.
-
-## Enable non-deleting edits deliberately
+Or connect your client to the synthetic server:
 
 ```sh
-NOTES_ALLOW_REAL=1 NOTES_ALLOW_WRITE=1 apple-notes-mcp --notes \
-  --allowed-folder 'REPLACE_WITH_YOUR_EXACT_FOLDER_ID' --enable-writes
+notebridge --fixture fixtures/synthetic.json --allowed-folder folder-demo
 ```
 
-Both the CLI flag and environment gate are required for real writes. The folder
-allowlist is unchanged. Use `apple_notes_prepare_edit` to obtain a fresh
-`expected_version` before each mutation. Each edit checks that version and saves a
-private backup before its final JXA recheck. **Notes has no atomic compare-and-swap:**
-concurrent manual edits can still race with a write.
+The fixture runs in memory and does not contact Apple Notes.
 
-Backups default to `~/Library/Application Support/Apple Notes MCP/backups`.
-Override with `--backup-dir` or `NOTES_BACKUP_DIR`. Directories must be owner-only
-(`0700`), and files are created `0600`. Backups contain private note content; they
-are not encrypted by this package and must remain outside the repository. When
-the backup budget is exhausted, further edits are refused; backups are not pruned.
+</details>
 
-If a write times out, its outcome is uncertain. Inspect the target before retrying.
-Do not run mutations concurrently on the same note. Keep backups and the Python
-code protected from other local users.
+## Connect your MCP client
 
-## Tools
+Add a stdio server to your client's MCP configuration, replacing the two placeholders:
 
-| Mode | Tools | Behavior |
-| --- | --- | --- |
-| Default | `apple_notes_list`, `apple_notes_search`, `apple_notes_changes` | Paged metadata; literal, case-insensitive **title** search; timestamp changes without deletions |
-| Default | `apple_notes_get`, `search`, `fetch` | Bounded plain text / citation compatibility; locked notes excluded |
-| `--enable-writes` | `apple_notes_capabilities`, `apple_notes_prepare_edit` | Capability report and bounded preview/version |
-| `--enable-writes` | `apple_notes_create`, `apple_notes_append`, `apple_notes_edit`, `apple_notes_rename` | Nonempty plain text or restricted basic HTML; version checks and backups for edits |
-| `--enable-writes` | `apple_notes_move`, `apple_notes_restore` | Move only between allowed folders; restore an existing attachment-free note from its own backup |
-| Also `--experimental-attachments` | `apple_notes_list_attachments`, `apple_notes_get_attachment`, `apple_notes_add_attachment` | Experimental native metadata, byte export, and additive attachment creation |
+```json
+{
+  "mcpServers": {
+    "notebridge": {
+      "command": "/ABSOLUTE/PATH/TO/notebridge/.venv/bin/notebridge",
+      "args": ["--notes", "--allowed-folder", "YOUR_EXACT_FOLDER_ID"],
+      "env": {"NOTES_ALLOW_REAL": "1"}
+    }
+  }
+}
+```
 
-There are 6 tools by default, 14 with edits, and 17 with experimental attachments.
-Write tools are annotated as mutations; annotations do not replace server checks or
-client approval policies. Shared notes are not editable. Basic reads can include
-shared notes within an allowed folder; do not allow such a folder if that is not
-what you intend.
+Configuration locations differ by client. Ready-to-adapt examples are in
+[`examples/`](examples/). The launcher needs its own macOS Automation permission;
+a Terminal permission may not apply to a desktop client or background service.
 
-### Limits and unsupported operations
+For remote clients such as ChatGPT, use a separately configured authenticated
+private transport. [Deployment guide →](docs/deployment.md)
 
-- No delete, empty-body clearing, unlock, sharing, account changes or remote scope
-  changes. Native checklist toggling, pinning, tags and folder management are not
-  implemented; the inspected Notes scripting dictionary exposes no checklist/pin
-  command or property.
-- Reads scan scoped metadata (at most 2,000 notes) on demand. There is no index or
-  background scanner. Lists default to 10 records, maximum 50; get defaults to
-  1,000 characters, maximum 8,000. Body text may be read by Notes before truncation;
-  the returned bound is not a whole-process memory guarantee.
-- Mutation previews are at most 500 characters; incoming text is at most 16,000
-  characters, and edit snapshots are capped at 256 KiB. Basic HTML permits lists,
-  tables, and formatting, but no attributes, scripts, images or remote resources.
-- Any note with attachments is protected from append/body replacement/restore.
-  Text/metadata backups are **not** backups of attachment binaries.
-- Experimental attachment transfers default to 64 KiB reads and have a 256 KiB
-  returned/addition limit. Native export may write the **entire** original into a
-  private temporary file before checking size. Some native objects may not export
-  as regular files. No PDF extraction, OCR, image interpretation or URL fetching
-  is implemented. Added attachments remain; removal is unavailable.
-- Metadata pagination is not a database snapshot. Notes can change during reads;
-  the changes feed includes boundary duplicates and does not report deletions.
+## Original files, not just previews
 
-See [validation details](docs/validation.md) for what was and was not tested.
+Enable attachment tools alongside the optional editing tools:
 
-## Remote access and background operation
+```sh
+NOTES_ALLOW_REAL=1 NOTES_ALLOW_WRITE=1 notebridge --notes \
+  --allowed-folder 'YOUR_EXACT_FOLDER_ID' \
+  --enable-writes --experimental-attachments
+```
 
-This server implements stdio only: no HTTP listener, authentication service,
-telemetry, or built-in cloud connection. Configure any remote transport separately,
-using authenticated private access. Never expose unauthenticated stdio-to-HTTP
-bridges on the public internet.
+The extra attachment flag is retained while native-format and client coverage grows.
+Attachment reading itself does not modify notes.
 
-The originating deployment used the official OpenAI tunnel client. It is optional,
-separately installed, and not bundled. Organization/workspace IDs, runtime keys,
-and installed launchd jobs are intentionally absent from this repository.
-[Deployment notes](docs/deployment.md) explain credential boundaries and recovery.
+1. Call `apple_notes_list_attachments` to obtain IDs, filenames and content IDs.
+2. Call `apple_notes_get_attachment` with the note and attachment IDs.
+3. If `next_offset` is present, continue from it with the returned `sha256` as
+   `expected_sha256`. Decode each `data_base64` chunk and concatenate in order.
+4. Check the reconstructed file against the complete SHA-256.
 
-## Development
+Each response includes the total file size, MIME type, byte range and original
+checksum. Chunks default to **256 KiB**, with up to **4 MiB** per call; that is a
+response bound, not a file-size limit. Clients supporting MCP resources can read
+the whole original through its `resource_uri`, up to **64 MiB**.
+
+The first image chunk also includes a separate JPEG preview, at most 1,600 pixels
+on its longest side. HEIC originals remain HEIC. Unknown file extensions are
+transferred unchanged. GPG files remain encrypted; byte retrieval is distinct
+from decrypting or interpreting a document.
+
+With `apple_notes_get(..., format="html")`, inline image payloads become SHA-256
+references in the exported HTML. Match those hashes to attachment bytes to
+reconstruct the image data while retaining the surrounding styles and structure.
+Duplicate filenames are distinguished by attachment ID.
+
+## Editing and recovery
+
+Add `--enable-writes` and set `NOTES_ALLOW_WRITE=1` to enable edits. For each edit,
+obtain an `expected_version` using `apple_notes_prepare_edit`. The server checks it,
+saves a private backup, and rechecks before applying the change.
+
+Backups live in `~/Library/Application Support/Apple Notes MCP/backups` by default.
+Use `--backup-dir` or `NOTES_BACKUP_DIR` to change that location. Restore applies to
+the text and formatting of an existing attachment-free note.
+
+## Tool reference
+
+| Mode | Tools |
+| --- | --- |
+| Read-only · 6 | `apple_notes_list`, `apple_notes_search`, `apple_notes_get`, `apple_notes_changes`, `search`, `fetch` |
+| Editing · +8 | `apple_notes_capabilities`, `apple_notes_prepare_edit`, `apple_notes_create`, `apple_notes_append`, `apple_notes_edit`, `apple_notes_rename`, `apple_notes_move`, `apple_notes_restore` |
+| Attachments · +3 | `apple_notes_list_attachments`, `apple_notes_get_attachment`, `apple_notes_add_attachment` |
+
+## How it works
+
+```mermaid
+flowchart LR
+    C[MCP client] -->|stdio| P[NoteBridge]
+    P -->|Apple Events via JXA| N[Apple Notes]
+    N <-.->|Apple-managed sync| I[iCloud or another Notes account]
+    P --> B[Local edit backups]
+```
+
+NoteBridge waits between requests. File exports and previews are temporary and
+created on demand; the package installs no background service. Remote access
+requires the Mac to stay awake, logged in and connected. This is a bridge to the
+Mac app, not a direct iCloud API.
+
+[Architecture →](docs/architecture.md)
+
+## Current limits
+
+- Notes-exported HTML preserves the formatting its scripting interface exposes;
+  it is not the complete native Notes document model.
+- Native checklist toggling, pinning, tags, folder management, sharing and deletion
+  are not implemented. Locked notes are excluded.
+- Body replacement is blocked on notes with attachments. Backups cover text and
+  metadata, not attachment binaries. Attachment addition remains capped at 256 KiB.
+- A cloud-only attachment may need downloading in Notes before export succeeds.
+- Version checks are optimistic; avoid simultaneous edits to the same note. After
+  a write timeout, inspect the result before retrying.
+
+Real deployment evidence covers core reading/editing and PNG/HEIC original export
+with local MCP previews. Other file formats have synthetic byte-transfer coverage.
+See [validation scope](docs/validation.md) for the distinction.
+
+## Contributing
+
+Bug reports, client compatibility reports and small focused pull requests are
+welcome. Use synthetic notes or files when sharing reproductions.
 
 ```sh
 python3 -m unittest discover -s tests -v
 python3 scripts/smoke_test.py
-python3 scripts/scan_publication.py
 ```
 
-Tests use synthetic data and mocked permissions. No test grants macOS permissions
-or requires an Apple account. On macOS you can additionally syntax-check the adapter:
+Start with [CONTRIBUTING.md](CONTRIBUTING.md). For vulnerability reports, see
+[SECURITY.md](SECURITY.md). Release history lives in [CHANGELOG.md](CHANGELOG.md).
 
-```sh
-osacompile -l JavaScript -o /tmp/notes-mcp-adapter.scpt apple_notes_mcp/adapter.js
-```
+## License
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). This project is
-not affiliated with Apple or OpenAI. MIT licensed; external components retain their
-own licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+[MIT](LICENSE). Independent project, not affiliated with Apple or OpenAI.
+External components retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md).

@@ -288,8 +288,8 @@ class WriteController:
                     "folder_management",
                 ],
                 "experimental_attachments_enabled": self.backend.experimental_attachments,
-                "attachment_validation": "Synthetic tests only; native/client attachment transfer has not been acceptance-tested for this release.",
-                "attachment_limits": "Transfers at most256KiB per response/addition; default read64KiB. Native export may temporarily write the full original before checking size. No arbitrary paths, URL fetching, execution or deletion. Adding preserves existing attachments; cannot undo an addition without removal, which is disabled. Backups preserve text/metadata, not existing binary files.",
+                "attachment_validation": "Native PNG and HEIC original export and local MCP previews verified; attachment addition and other formats have synthetic coverage.",
+                "attachment_limits": "Originals of any file format:256KiB default byte range, up to4MiB per call; continue next_offset with expected_sha256. Whole MCP resource up to64MiB, larger files use ranges. Separate image previews never replace original bytes. format=html on get includes exported formatting and content-ID mapping. Additions remain capped256KiB. Native export temporarily writes the complete original; no idle polling/cache. Backups preserve text/metadata, not binary attachments.",
                 "unsupported_interface_reason": "Installed Notes scripting dictionary exposes attachment make/save but no native checklist state or pin property/command. No database or GUI automation fallback is implemented.",
                 "concurrency": "Optimistic content/version recheck; Apple Notes does not offer atomic compare-and-swap. Concurrent external editing remains a risk.",
             }
